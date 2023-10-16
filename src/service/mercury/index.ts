@@ -2,6 +2,7 @@ import { Client } from '@urql/core'
 import axios from 'axios'
 import { Logger } from 'pino'
 import { nativeToScVal } from 'soroban-client'
+import { mutation, query } from './queries'
 
 export interface NewSubscriptionPayload {
   contract_id?: string
@@ -9,42 +10,55 @@ export interface NewSubscriptionPayload {
   [key: string]: string | number | undefined
 }
 
+interface MercurySession {
+  baseUrl: string
+  token: string
+  email: string
+  password: string
+}
+
 export class MercuryClient {
   urqlClient: Client
-  mercuryToken: string
+  mercurySession: MercurySession
   mercuryNewSubUrl: string
   logger: Logger
 
   constructor(
-    mercuryToken: string, 
-    mercuryBaseUrl: string,
+    mercurySession: MercurySession,
     urqlClient: Client, 
     logger: Logger
   ) {
-    this.mercuryToken = mercuryToken
-    this.mercuryNewSubUrl = `${mercuryBaseUrl}:3030/newsubscription`
+    this.mercurySession = mercurySession
+    this.mercuryNewSubUrl = `${mercurySession.baseUrl}:3030/newsubscription`
     this.urqlClient = urqlClient
     this.logger = logger
   }
 
-  getSubscriptionByID = async (id: string) => {
-    const SubscriptionById = `
-      query GetSubById {
-        contractEventById($id: ID!) {
-          id
-          data
-          contractId
-          ledgerTimestamp
-          nodeId
-          topic1
-          topic2
-          topic3
-          topic4
-        }
-      }
-    `
+  renewMercuryToken = async () => {
     try {
-      const data = await this.urqlClient.query(SubscriptionById, { id });
+      const { data } = await this.urqlClient.query(
+        mutation.authenticate, 
+        { email: this.mercurySession.email, password: this.mercurySession.password }
+      );
+      this.renewMercuryToken = data.authenticate.jwtToken
+
+      return {
+        data,
+        error: null
+      }
+    } catch (error) {
+      const _error = JSON.stringify(error)
+      this.logger.error(_error)
+      return {
+        data: null,
+        error: _error
+      }
+    }
+  }
+
+  getSubscriptionByID = async (id: string) => {
+    try {
+      const data = await this.urqlClient.query(query.subscriptionById, { id });
 
       return {
         data,
@@ -61,19 +75,8 @@ export class MercuryClient {
   }
 
   getSubscriptions = async () => {
-    const AllSubscriptions = `
-      query MyQuery {
-        allContractEventSubscriptions {
-          edges {
-            node {
-              contractId
-            }
-          }
-        }
-      }
-    `
     try {
-      const data = await this.urqlClient.query(AllSubscriptions, {});
+      const data = await this.urqlClient.query(query.allSubscriptions, {});
 
       return {
         data,
@@ -151,6 +154,42 @@ export class MercuryClient {
 
       return {
         data: true,
+        error: null
+      }
+    } catch (error) {
+      const _error = JSON.stringify(error)
+      this.logger.error(_error)
+      return {
+        data: null,
+        error: _error
+      }
+    }
+  }
+
+  addNewAccountSubscription = async (pubKey: string) => {
+    try {
+      const data = await this.urqlClient.query(mutation.newAccountSubscription, { pubKey });
+
+      return {
+        data,
+        error: null
+      }
+    } catch (error) {
+      const _error = JSON.stringify(error)
+      this.logger.error(_error)
+      return {
+        data: null,
+        error: _error
+      }
+    }
+  }
+
+  getAccountHistory = async (pubKey: string) => { 
+    try {
+      const data = await this.urqlClient.query(query.getAccountHistory, {publicKeyText: pubKey});
+
+      return {
+        data,
         error: null
       }
     } catch (error) {

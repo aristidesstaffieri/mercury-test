@@ -46,7 +46,13 @@ async function main() {
       };
     }
   })
-  const mercuryClient = new MercuryClient(conf.mercuryKey, conf.mercuryUrl, client, logger)
+  const mercurySession = {
+    token: conf.mercuryKey,
+    baseUrl: conf.mercuryUrl,
+    email: conf.mercuryEmail,
+    password: conf.mercuryPassword
+  }
+  const mercuryClient = new MercuryClient(mercurySession, client, logger)
   const server = initApiServer(mercuryClient)
 
   try {
